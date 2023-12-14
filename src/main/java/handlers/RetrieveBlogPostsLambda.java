@@ -3,6 +3,7 @@ package handlers;
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.LambdaLogger;
 import com.amazonaws.services.lambda.runtime.RequestStreamHandler;
+import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyResponseEvent;
 import com.amazonaws.services.lambda.runtime.logging.LogLevel;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyRequestEvent;
 
@@ -92,14 +93,19 @@ public class RetrieveBlogPostsLambda implements RequestStreamHandler {
 
                 // Prepare response
                 String responseBody = mapper.writeValueAsString(blogPostsArray);
+                LOGGER.log("Response: " + responseBody, LogLevel.INFO);
 
                 // Set headers
                 Map<String, String> headers = new HashMap<>();
                 headers.put("Content-Type", "application/json");
-
+                // Prepare http response to the API Gateway
+                APIGatewayProxyResponseEvent responseEvent = new APIGatewayProxyResponseEvent()
+                        .withStatusCode(200)
+                        .withHeaders(headers)
+                        .withBody(responseBody);
                 // Write response to output stream
                 try (OutputStreamWriter writer = new OutputStreamWriter(output, StandardCharsets.UTF_8)) {
-                    writer.write(responseBody);
+                    writer.write(responseEvent.toString());
                 } catch (IOException e) {
                     LOGGER.log("Error writing response: " + e.getMessage(), LogLevel.ERROR);
                 }
@@ -116,7 +122,7 @@ public class RetrieveBlogPostsLambda implements RequestStreamHandler {
                     LOGGER.log("Error writing error response: " + ioException.getMessage(), LogLevel.ERROR);
                 }
             } finally {
-                // Close resources in a try-with-resources block
+                // Close resources
                 try {
                     if (connection != null) {
                         connection.close();
