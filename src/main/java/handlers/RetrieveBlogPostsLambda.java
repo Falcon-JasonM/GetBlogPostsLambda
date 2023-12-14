@@ -12,6 +12,7 @@ import software.amazon.awssdk.services.secretsmanager.SecretsManagerClient;
 import software.amazon.awssdk.services.secretsmanager.model.GetSecretValueRequest;
 import software.amazon.awssdk.services.secretsmanager.model.GetSecretValueResponse;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 
@@ -29,6 +30,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class RetrieveBlogPostsLambda implements RequestStreamHandler {
 
     private static final String DB_URL = System.getenv("DB_URL_KEY");
@@ -101,6 +103,7 @@ public class RetrieveBlogPostsLambda implements RequestStreamHandler {
                 // Prepare http response to the API Gateway
                 APIGatewayProxyResponseEvent responseEvent = new APIGatewayProxyResponseEvent()
                         .withStatusCode(200)
+                        .withHeaders(headers)
                         .withHeaders(headers)
                         .withBody(responseBody);
                 // Write response to output stream

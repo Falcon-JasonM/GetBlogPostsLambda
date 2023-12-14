@@ -11,14 +11,17 @@
 <packaging>jar</packaging>
 
 <properties>
-  <maven.compiler.source>1.8</maven.compiler.source>
-  <maven.compiler.target>1.8</maven.compiler.target>
+  <java.version>11</java.version>
+  <maven.compiler.source>${java.version}</maven.compiler.source>
+  <maven.compiler.target>${java.version}</maven.compiler.target>
+
   <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-  <aws.lambda.java.version>provided</aws.lambda.java.version>
-  <aws.java.sdk.version>1.2.3</aws.java.sdk.version>
+
+  <aws.sdk.version>1.2.3</aws.sdk.version>
   <jackson.version>2.13.4.1</jackson.version>
   <postgresql.version>42.2.27</postgresql.version>
 </properties>
+
 
 <dependencies>
   <dependency>
@@ -48,10 +51,11 @@
   </dependency>
   <!-- AWS Lambda Core Library -->
   <dependency>
-    <groupId>com.amazonaws</groupId>
-    <artifactId>aws-lambda-java-core</artifactId>
-    <version>${aws.java.sdk.version}</version>
-  </dependency>
+  <groupId>com.amazonaws</groupId>
+  <artifactId>aws-lambda-java-core</artifactId>
+  <version>${aws.sdk.version}</version>
+</dependency>
+
   <!-- https://mvnrepository.com/artifact/com.amazonaws/aws-lambda-java-events -->
   <dependency>
     <groupId>com.amazonaws</groupId>
@@ -93,6 +97,20 @@
         <target>11</target>
       </configuration>
     </plugin>
+
+    <plugin>
+  <groupId>org.apache.maven.plugins</groupId>
+  <artifactId>maven-dependency-plugin</artifactId>
+  <executions>
+    <execution>
+      <id>analyze</id>
+      <goals>
+        <goal>analyze-only</goal>
+      </goals>
+    </execution>
+  </executions>
+</plugin>
+
 
     <!-- Maven Shade Plugin to create a fat JAR -->
     <plugin>
