@@ -47,93 +47,87 @@ public class RetrieveBlogPostsLambda implements RequestStreamHandler {
         // Cast the input as an APIGatewayProxyRequestEvent to handle HTTP GET requests
         APIGatewayProxyRequestEvent requestEvent = new ObjectMapper().readValue(input, APIGatewayProxyRequestEvent.class);
 
-        if ("GET".equals(requestEvent.getHttpMethod())) {
-            
-            try {
-                LOGGER.log("Getting DB credentials...\n");
+        APIGatewayProxyResponseEvent responseEvent = new APIGatewayProxyResponseEvent();
+        Map<String, String> headers = new HashMap<>();
+        headers.put("Content-Type", "application/json");
+        headers.put("Access-Control-Allow-Origin", "http://jason-melick-frontend-source-bucket.s3-website.us-east-2.amazonaws.com");
 
-                SecretsManagerClient client = SecretsManagerClient.builder()
-                        .region(Region.US_EAST_2)
-                        .build();
+        try {
+            LOGGER.log("Getting DB credentials...\n");
 
-                GetSecretValueRequest getSecretValueRequest = GetSecretValueRequest.builder()
-                        .secretId(secretName)
-                        .build();
+            SecretsManagerClient client = SecretsManagerClient.builder()
+                    .region(Region.US_EAST_2)
+                    .build();
 
-                GetSecretValueResponse getSecretValueResponse = client.getSecretValue(getSecretValueRequest);
+            GetSecretValueRequest getSecretValueRequest = GetSecretValueRequest.builder()
+                    .secretId(secretName)
+                    .build();
 
-                String secret = getSecretValueResponse.secretString();
-                Map<String, String> secretMap = mapper.readValue(secret, Map.class);
-                String dbUsername = secretMap.get("username");
-                String dbPassword = secretMap.get("password");
-                LOGGER.log("Got DB credentials\n", LogLevel.DEBUG);
+            GetSecretValueResponse getSecretValueResponse = client.getSecretValue(getSecretValueRequest);
 
-                LOGGER.log("Attempting to connect to the DB...\n", LogLevel.INFO);
+            String secret = getSecretValueResponse.secretString();
+            Map<String, String> secretMap = mapper.readValue(secret, Map.class);
+            String dbUsername = secretMap.get("username");
+            String dbPassword = secretMap.get("password");
+            LOGGER.log("Got DB credentials\n", LogLevel.DEBUG);
 
-                // Load the PostgreSQL JDBC driver
-                Class.forName("org.postgresql.Driver");
-                connection = DriverManager.getConnection(DB_URL, dbUsername, dbPassword);
-                LOGGER.log("Connected to the DB\n", LogLevel.DEBUG);
+            LOGGER.log("Attempting to connect to the DB...\n", LogLevel.INFO);
 
-                // Fetch blog posts from the database
-                Statement statement = connection.createStatement();
-                ResultSet resultSet = statement.executeQuery("SELECT * FROM BlogPosts");
+            // Load the PostgreSQL JDBC driver
+            Class.forName("org.postgresql.Driver");
+            connection = DriverManager.getConnection(DB_URL, dbUsername, dbPassword);
+            LOGGER.log("Connected to the DB\n", LogLevel.DEBUG);
 
-                while (resultSet.next()) {
-                    String postTitle = resultSet.getString("title");
-                    String postContent = resultSet.getString("content");
-                    // Use JSON object structure to represent each post
-                    String post = "{\"title\":\"" + postTitle + "\",\"content\":\"" + postContent + "\"}";
-                    blogPosts.add(post);
-                }
+            // Fetch blog posts from the database
+            Statement statement = connection.createStatement();
+            ResultSet resultSet = statement.executeQuery("SELECT * FROM BlogPosts");
 
-                // Construct JSON array
-                ArrayNode blogPostsArray = mapper.createArrayNode();
-                for (String post : blogPosts) {
-                    blogPostsArray.add(mapper.readTree(post));
-                }
-
-                // Prepare response
-                String responseBody = mapper.writeValueAsString(blogPostsArray);
-                LOGGER.log("Response: " + responseBody, LogLevel.INFO);
-
-                // Set headers
-                Map<String, String> headers = new HashMap<>();
-                headers.put("Content-Type", "application/json");
-                // Prepare http response to the API Gateway
-                APIGatewayProxyResponseEvent responseEvent = new APIGatewayProxyResponseEvent()
-                        .withStatusCode(200)
-                        .withHeaders(headers)
-                        .withHeaders(headers)
-                        .withBody(responseBody);
-                // Write response to output stream
-                try (OutputStreamWriter writer = new OutputStreamWriter(output, StandardCharsets.UTF_8)) {
-                    writer.write(responseEvent.toString());
-                } catch (IOException e) {
-                    LOGGER.log("Error writing response: " + e.getMessage(), LogLevel.ERROR);
-                }
-
-            } catch (ClassNotFoundException | SQLException e) {
-                LOGGER.log("Exception: " + e.getMessage(), LogLevel.ERROR);
-                // Prepare error response
-                String errorResponse = "{\"error\": \"An error occurred while processing the request.\"}";
-                Map<String, String> headers = new HashMap<>();
-                headers.put("Content-Type", "application/json");
-                try (OutputStreamWriter writer = new OutputStreamWriter(output, StandardCharsets.UTF_8)) {
-                    writer.write(errorResponse);
-                } catch (IOException ioException) {
-                    LOGGER.log("Error writing error response: " + ioException.getMessage(), LogLevel.ERROR);
-                }
-            } finally {
-                // Close resources
-                try {
-                    if (connection != null) {
-                        connection.close();
-                    }
-                } catch (SQLException e) {
-                    LOGGER.log("Error closing connection: " + e.getMessage(), LogLevel.ERROR);
-                }
+            while (resultSet.next()) {
+                String postTitle = resultSet.getString("title");
+                String postContent = resultSet.getString("content");
+                // Use JSON object structure to represent each post
+                String post = "{\"title\":\"" + postTitle + "\",\"content\":\"" + postContent + "\"}";
+                blogPosts.add(post);
             }
+
+            // Construct JSON array
+            ArrayNode blogPostsArray = mapper.createArrayNode();
+            for (String post : blogPosts) {
+                blogPostsArray.add(mapper.readTree(post));
+            }
+
+            // Prepare response
+            String responseBody = mapper.writeValueAsString(blogPostsArray);
+            LOGGER.log("Response: " + responseBody, LogLevel.INFO);
+
+            responseEvent.setStatusCode(200);
+            responseEvent.setHeaders(headers);
+            responseEvent.setBody(responseBody);
+
+        } catch (ClassNotFoundException | SQLException e) {
+            LOGGER.log("Exception: " + e.getMessage(), LogLevel.ERROR);
+            // Prepare error response
+            String errorResponse = "{\"error\": \"An error occurred while processing the request.\"}";
+
+            responseEvent.setStatusCode(500); // Internal Server Error
+            responseEvent.setHeaders(headers);
+            responseEvent.setBody(errorResponse);
+        } finally {
+            // Close resources
+            try {
+                if (connection != null) {
+                    connection.close();
+                }
+            } catch (SQLException e) {
+                LOGGER.log("Error closing connection: " + e.getMessage(), LogLevel.ERROR);
+            }
+        }
+
+        // Write response to output stream
+        try (OutputStreamWriter writer = new OutputStreamWriter(output, StandardCharsets.UTF_8)) {
+            writer.write(mapper.writeValueAsString(responseEvent));
+        } catch (IOException e) {
+            LOGGER.log("Error writing response: " + e.getMessage(), LogLevel.ERROR);
         }
     }
 }
