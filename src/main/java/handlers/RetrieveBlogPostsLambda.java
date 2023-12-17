@@ -5,7 +5,6 @@ import com.amazonaws.services.lambda.runtime.LambdaLogger;
 import com.amazonaws.services.lambda.runtime.RequestStreamHandler;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyResponseEvent;
 import com.amazonaws.services.lambda.runtime.logging.LogLevel;
-import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyRequestEvent;
 
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.secretsmanager.SecretsManagerClient;
@@ -45,13 +44,12 @@ public class RetrieveBlogPostsLambda implements RequestStreamHandler {
         ArrayList<String> blogPosts = new ArrayList<>();
 
         // Cast the input as an APIGatewayProxyRequestEvent to handle HTTP GET requests
-        APIGatewayProxyRequestEvent requestEvent = new ObjectMapper().readValue(input, APIGatewayProxyRequestEvent.class);
-
-        APIGatewayProxyResponseEvent responseEvent = new APIGatewayProxyResponseEvent();
+        //HttpRequest request = mapper.readValue(input, HttpRequest.class);
         Map<String, String> headers = new HashMap<>();
         headers.put("Content-Type", "application/json");
         headers.put("Access-Control-Allow-Origin", "http://jason-melick-frontend-source-bucket.s3-website.us-east-2.amazonaws.com");
 
+        APIGatewayProxyResponseEvent responseEvent = null;
         try {
             LOGGER.log("Getting DB credentials...\n");
 
@@ -80,7 +78,7 @@ public class RetrieveBlogPostsLambda implements RequestStreamHandler {
 
             // Fetch blog posts from the database
             Statement statement = connection.createStatement();
-            ResultSet resultSet = statement.executeQuery("SELECT * FROM BlogPosts");
+            ResultSet resultSet = statement.executeQuery("SELECT * FROM blog_page.blog_post");
 
             while (resultSet.next()) {
                 String postTitle = resultSet.getString("title");
@@ -99,16 +97,17 @@ public class RetrieveBlogPostsLambda implements RequestStreamHandler {
             // Prepare response
             String responseBody = mapper.writeValueAsString(blogPostsArray);
             LOGGER.log("Response: " + responseBody, LogLevel.INFO);
-
+            responseEvent = new APIGatewayProxyResponseEvent();
             responseEvent.setStatusCode(200);
             responseEvent.setHeaders(headers);
             responseEvent.setBody(responseBody);
+            responseEvent.setIsBase64Encoded(false);
 
         } catch (ClassNotFoundException | SQLException e) {
             LOGGER.log("Exception: " + e.getMessage(), LogLevel.ERROR);
             // Prepare error response
             String errorResponse = "{\"error\": \"An error occurred while processing the request.\"}";
-
+            responseEvent = new APIGatewayProxyResponseEvent();
             responseEvent.setStatusCode(500); // Internal Server Error
             responseEvent.setHeaders(headers);
             responseEvent.setBody(errorResponse);
