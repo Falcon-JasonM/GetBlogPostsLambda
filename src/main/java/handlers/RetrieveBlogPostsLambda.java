@@ -6,6 +6,7 @@ import com.amazonaws.services.lambda.runtime.RequestStreamHandler;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyResponseEvent;
 import com.amazonaws.services.lambda.runtime.logging.LogLevel;
 
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.secretsmanager.SecretsManagerClient;
 import software.amazon.awssdk.services.secretsmanager.model.GetSecretValueRequest;
@@ -80,18 +81,18 @@ public class RetrieveBlogPostsLambda implements RequestStreamHandler {
             Statement statement = connection.createStatement();
             ResultSet resultSet = statement.executeQuery("SELECT * FROM blog_page.blog_post");
 
+            // Construct JSON array
+            ArrayNode blogPostsArray = mapper.createArrayNode();
+
             while (resultSet.next()) {
                 String postTitle = resultSet.getString("title");
                 String postContent = resultSet.getString("content");
-                // Use JSON object structure to represent each post
-                String post = "{\"title\":\"" + postTitle + "\",\"content\":\"" + postContent + "\"}";
-                blogPosts.add(post);
-            }
 
-            // Construct JSON array
-            ArrayNode blogPostsArray = mapper.createArrayNode();
-            for (String post : blogPosts) {
-                blogPostsArray.add(mapper.readTree(post));
+                ObjectNode postNode = mapper.createObjectNode();
+                postNode.put("title", postTitle);
+                postNode.put("content", postContent);
+
+                blogPostsArray.add(postNode);
             }
 
             // Prepare response
@@ -111,6 +112,7 @@ public class RetrieveBlogPostsLambda implements RequestStreamHandler {
             responseEvent.setStatusCode(500); // Internal Server Error
             responseEvent.setHeaders(headers);
             responseEvent.setBody(errorResponse);
+            responseEvent.setIsBase64Encoded(false);
         } finally {
             // Close resources
             try {
